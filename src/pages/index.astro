@@ -1,11 +1,336 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-import "../styles/global.css";
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import Layout from '@/layouts/Layout.astro';
+import '@/styles/global.css';
+import { getDb } from '@/db';
+import { episodes, movies, seasons, series } from '@/db/schema';
+import { asc, desc, eq } from 'drizzle-orm';
+
+interface MovieRow {
+  id: number;
+  title: string;
+  year: number | null;
+  fileSize: number | null;
+  uploadedAt: Date | null;
+}
+
+interface ShowSummary {
+  id: number;
+  title: string;
+  year: number | null;
+  uploadedEpisodes: number;
+}
+
+interface UploadItem {
+  id: number;
+  mediaType: 'movie' | 'episode';
+  title: string;
+  detail?: string;
+  createdAt: Date | null;
+}
+
+interface FailureItem extends UploadItem {
+  errorMessage: string | null;
+}
+
+const BYTES_PER_GIB = 1024 ** 3;
+const formatGiB = (bytes: number) => `${(bytes / BYTES_PER_GIB).toFixed(2)} GB`;
+const formatDate = (date: Date | null) =>
+  date ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : 'N/A';
+
+let loadError: string | null = null;
+let moviesDownloaded = 0;
+let tvShowsDownloaded = 0;
+let totalUploadedBytes = 0;
+let movieList: MovieRow[] = [];
+let tvShowList: ShowSummary[] = [];
+let inProgressUploads: UploadItem[] = [];
+let failures: FailureItem[] = [];
+
+try {
+  const db = getDb();
+
+  const [
+    uploadedMovies,
+    showRows,
+    uploadingMovies,
+    uploadingEpisodes,
+    failedMovies,
+    failedEpisodes,
+  ] = await Promise.all([
+    db
+      .select({
+        id: movies.id,
+        title: movies.title,
+        year: movies.year,
+        fileSize: movies.fileSize,
+        uploadedAt: movies.uploadedAt,
+      })
+      .from(movies)
+      .where(eq(movies.uploadStatus, 'uploaded'))
+      .orderBy(asc(movies.title)),
+    db
+      .select({
+        seriesId: series.id,
+        seriesTitle: series.title,
+        firstAirYear: series.firstAirYear,
+        episodeStatus: episodes.uploadStatus,
+        episodeFileSize: episodes.fileSize,
+      })
+      .from(series)
+      .leftJoin(seasons, eq(seasons.seriesId, series.id))
+      .leftJoin(episodes, eq(episodes.seasonId, seasons.id))
+      .orderBy(asc(series.title)),
+    db
+      .select({
+        id: movies.id,
+        title: movies.title,
+        createdAt: movies.createdAt,
+      })
+      .from(movies)
+      .where(eq(movies.uploadStatus, 'uploading'))
+      .orderBy(desc(movies.createdAt)),
+    db
+      .select({
+        id: episodes.id,
+        seriesTitle: series.title,
+        seasonNumber: seasons.seasonNumber,
+        episodeNumber: episodes.episodeNumber,
+        episodeTitle: episodes.title,
+        createdAt: episodes.createdAt,
+      })
+      .from(episodes)
+      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
+      .innerJoin(series, eq(seasons.seriesId, series.id))
+      .where(eq(episodes.uploadStatus, 'uploading'))
+      .orderBy(desc(episodes.createdAt)),
+    db
+      .select({
+        id: movies.id,
+        title: movies.title,
+        createdAt: movies.createdAt,
+        errorMessage: movies.errorMessage,
+      })
+      .from(movies)
+      .where(eq(movies.uploadStatus, 'failed'))
+      .orderBy(desc(movies.createdAt)),
+    db
+      .select({
+        id: episodes.id,
+        seriesTitle: series.title,
+        seasonNumber: seasons.seasonNumber,
+        episodeNumber: episodes.episodeNumber,
+        episodeTitle: episodes.title,
+        createdAt: episodes.createdAt,
+        errorMessage: episodes.errorMessage,
+      })
+      .from(episodes)
+      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
+      .innerJoin(series, eq(seasons.seriesId, series.id))
+      .where(eq(episodes.uploadStatus, 'failed'))
+      .orderBy(desc(episodes.createdAt)),
+  ]);
+
+  movieList = uploadedMovies;
+  moviesDownloaded = uploadedMovies.length;
+  totalUploadedBytes += uploadedMovies.reduce((total, movie) => total + (movie.fileSize || 0), 0);
+
+  const showMap = new Map<number, ShowSummary>();
+  for (const row of showRows) {
+    if (!showMap.has(row.seriesId)) {
+      showMap.set(row.seriesId, {
+        id: row.seriesId,
+        title: row.seriesTitle,
+        year: row.firstAirYear,
+        uploadedEpisodes: 0,
+      });
+    }
+    if (row.episodeStatus === 'uploaded') {
+      const show = showMap.get(row.seriesId)!;
+      show.uploadedEpisodes += 1;
+      totalUploadedBytes += row.episodeFileSize || 0;
+    }
+  }
+
+  tvShowList = Array.from(showMap.values()).sort((a, b) => a.title.localeCompare(b.title));
+  tvShowsDownloaded = tvShowList.filter((show) => show.uploadedEpisodes > 0).length;
+
+  inProgressUploads = [
+    ...uploadingMovies.map((movie) => ({
+      id: movie.id,
+      mediaType: 'movie' as const,
+      title: movie.title,
+      createdAt: movie.createdAt,
+    })),
+    ...uploadingEpisodes.map((episode) => ({
+      id: episode.id,
+      mediaType: 'episode' as const,
+      title: episode.seriesTitle,
+      detail: `S${String(episode.seasonNumber).padStart(2, '0')}E${String(episode.episodeNumber).padStart(2, '0')}${
+        episode.episodeTitle ? ` - ${episode.episodeTitle}` : ''
+      }`,
+      createdAt: episode.createdAt,
+    })),
+  ].sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
+
+  failures = [
+    ...failedMovies.map((movie) => ({
+      id: movie.id,
+      mediaType: 'movie' as const,
+      title: movie.title,
+      createdAt: movie.createdAt,
+      errorMessage: movie.errorMessage,
+    })),
+    ...failedEpisodes.map((episode) => ({
+      id: episode.id,
+      mediaType: 'episode' as const,
+      title: episode.seriesTitle,
+      detail: `S${String(episode.seasonNumber).padStart(2, '0')}E${String(episode.episodeNumber).padStart(2, '0')}${
+        episode.episodeTitle ? ` - ${episode.episodeTitle}` : ''
+      }`,
+      createdAt: episode.createdAt,
+      errorMessage: episode.errorMessage,
+    })),
+  ].sort((a, b) => (b.createdAt ? b.createdAt.getTime() : 0) - (a.createdAt ? a.createdAt.getTime() : 0));
+} catch (error) {
+  loadError = error instanceof Error ? error.message : 'Unknown error';
+}
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="Acquirer Media Dashboard">
+  <main class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="mx-auto flex max-w-7xl flex-col gap-8 p-6 md:p-10">
+      <header class="rounded-3xl border border-cyan-400/30 bg-gradient-to-r from-slate-900 to-slate-800 p-6 shadow-2xl shadow-cyan-900/30">
+        <p class="text-sm uppercase tracking-[0.24em] text-cyan-300">Acquirer</p>
+        <h1 class="mt-2 text-3xl font-semibold md:text-4xl">Media Upload Overview</h1>
+        <p class="mt-2 text-slate-300">Server-rendered dashboard of downloaded content and upload status.</p>
+      </header>
+
+      {
+        loadError ? (
+          <section class="rounded-2xl border border-rose-300/30 bg-rose-900/20 p-5 text-rose-100">
+            <h2 class="text-lg font-semibold">Could not load dashboard</h2>
+            <p class="mt-2 text-sm">{loadError}</p>
+          </section>
+        ) : (
+          <>
+            <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <article class="rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
+                <p class="text-sm uppercase tracking-wider text-slate-400">Movies Downloaded</p>
+                <p class="mt-3 text-3xl font-semibold text-cyan-300">{moviesDownloaded}</p>
+              </article>
+              <article class="rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
+                <p class="text-sm uppercase tracking-wider text-slate-400">TV Shows Downloaded</p>
+                <p class="mt-3 text-3xl font-semibold text-emerald-300">{tvShowsDownloaded}</p>
+              </article>
+              <article class="rounded-2xl border border-slate-700 bg-slate-900/70 p-5 sm:col-span-2 lg:col-span-1">
+                <p class="text-sm uppercase tracking-wider text-slate-400">Uploaded Media Size</p>
+                <p class="mt-3 text-3xl font-semibold text-amber-300">{formatGiB(totalUploadedBytes)}</p>
+              </article>
+            </section>
+
+            <section class="grid gap-4 lg:grid-cols-2">
+              <article class="rounded-2xl border border-slate-700 bg-slate-900/60 p-5">
+                <h2 class="text-xl font-semibold">Movies</h2>
+                {
+                  movieList.length === 0 ? (
+                    <p class="mt-3 text-sm text-slate-400">No downloaded movies yet.</p>
+                  ) : (
+                    <ul class="mt-3 space-y-2">
+                      {movieList.map((movie) => (
+                        <li class="rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
+                          <p class="font-medium">
+                            {movie.title}
+                            {movie.year ? ` (${movie.year})` : ''}
+                          </p>
+                          <p class="text-sm text-slate-400">
+                            {formatGiB(movie.fileSize || 0)} • Uploaded {formatDate(movie.uploadedAt)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </article>
+
+              <article class="rounded-2xl border border-slate-700 bg-slate-900/60 p-5">
+                <h2 class="text-xl font-semibold">TV Shows</h2>
+                {
+                  tvShowList.length === 0 ? (
+                    <p class="mt-3 text-sm text-slate-400">No TV shows tracked yet.</p>
+                  ) : (
+                    <ul class="mt-3 space-y-2">
+                      {tvShowList.map((show) => (
+                        <li class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2">
+                          <p class="font-medium">
+                            {show.title}
+                            {show.year ? ` (${show.year})` : ''}
+                          </p>
+                          <p class="text-sm text-slate-300">{show.uploadedEpisodes} episodes downloaded</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </article>
+            </section>
+
+            <section class="grid gap-4 lg:grid-cols-2">
+              <article class="rounded-2xl border border-sky-400/30 bg-sky-950/20 p-5">
+                <h2 class="text-xl font-semibold text-sky-100">In Progress Uploads</h2>
+                {
+                  inProgressUploads.length === 0 ? (
+                    <p class="mt-3 text-sm text-slate-300">No uploads currently in progress.</p>
+                  ) : (
+                    <ul class="mt-3 space-y-2">
+                      {inProgressUploads.map((item) => (
+                        <li class="rounded-xl border border-sky-400/20 bg-slate-950/70 px-3 py-2">
+                          <p class="font-medium text-slate-100">
+                            <span class="mr-2 rounded-full bg-sky-400/20 px-2 py-0.5 text-xs uppercase tracking-wider text-sky-200">
+                              {item.mediaType}
+                            </span>
+                            {item.title}
+                          </p>
+                          <p class="mt-1 text-sm text-slate-300">
+                            {item.detail ? `${item.detail} • ` : ''}
+                            Started {formatDate(item.createdAt)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </article>
+
+              <article class="rounded-2xl border border-rose-400/30 bg-rose-950/20 p-5">
+                <h2 class="text-xl font-semibold text-rose-100">Failures</h2>
+                {
+                  failures.length === 0 ? (
+                    <p class="mt-3 text-sm text-slate-300">No failed uploads.</p>
+                  ) : (
+                    <ul class="mt-3 space-y-2">
+                      {failures.map((item) => (
+                        <li class="rounded-xl border border-rose-400/20 bg-slate-950/70 px-3 py-2">
+                          <p class="font-medium text-slate-100">
+                            <span class="mr-2 rounded-full bg-rose-400/20 px-2 py-0.5 text-xs uppercase tracking-wider text-rose-200">
+                              {item.mediaType}
+                            </span>
+                            {item.title}
+                          </p>
+                          <p class="mt-1 text-sm text-slate-300">
+                            {item.detail ? `${item.detail} • ` : ''}
+                            Failed {formatDate(item.createdAt)}
+                          </p>
+                          <p class="mt-1 text-sm text-rose-200">{item.errorMessage || 'Unknown upload error'}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </article>
+            </section>
+          </>
+        )
+      }
+    </div>
+  </main>
 </Layout>
