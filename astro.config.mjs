@@ -20,6 +20,7 @@ export default defineConfig({
         S3_SECRET_KEY: envField.string({ context: "server", access: "secret"}),
         S3_REGION: envField.string({ context: "server", access: "secret"}),
         S3_ENDPOINT_URL: envField.string({ context: "server", access: "secret"}),
+        DATABASE_URL: envField.string({ context: "server", access: "secret"})
     }
   }
 });
