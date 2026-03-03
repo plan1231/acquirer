@@ -22,7 +22,7 @@ services:
       - WEBUI_PORT=8080
     volumes:
       - qbittorrent_config:/config
-      - downloads:/downloads
+      - /data:/data
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
       - TZ=America/New_York
     volumes:
       - sonarr_config:/config
-      - downloads:/downloads
+      - /data:/data
     ports:
       - "8989:8989"
     restart: unless-stopped
@@ -50,7 +50,7 @@ services:
       - TZ=America/New_York
     volumes:
       - radarr_config:/config
-      - downloads:/downloads
+      - /data:/data
     ports:
       - "7878:7878"
     restart: unless-stopped
