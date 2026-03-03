@@ -125,7 +125,7 @@ export const POST: APIRoute = async ({ request }) => {
             title: ep.title || '',
             filePath,
             fileSize,
-            uploadStatus: 'pending',
+            uploadStatus: 'uploading',
           });
         }
       }
@@ -178,7 +178,7 @@ export const POST: APIRoute = async ({ request }) => {
       await db
         .update(episodes)
         .set({
-          uploadStatus: uploadResult.success ? 'completed' : 'failed',
+          uploadStatus: uploadResult.success ? 'uploaded' : 'failed',
           s3Key: uploadResult.success ? s3Key : null,
           uploadedAt: uploadResult.success ? new Date() : null,
           errorMessage: uploadResult.error || null,
@@ -193,7 +193,7 @@ export const POST: APIRoute = async ({ request }) => {
         fileSize,
         s3Key,
         s3Bucket: process.env.S3_BUCKET || '',
-        status: uploadResult.success ? 'completed' : 'failed',
+        status: uploadResult.success ? 'uploaded' : 'failed',
         errorMessage: uploadResult.error || null,
       });
 

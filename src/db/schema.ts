@@ -1,5 +1,5 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-import { relations } from 'drizzle-orm';
+import { check, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { relations, sql } from 'drizzle-orm';
 
 // Series table
 export const series = sqliteTable('series', {
@@ -18,34 +18,56 @@ export const seasons = sqliteTable('seasons', {
 });
 
 // Episodes table
-export const episodes = sqliteTable('episodes', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  seasonId: integer('season_id').references(() => seasons.id).notNull(),
-  episodeNumber: integer('episode_number').notNull(),
-  title: text('title'),
-  filePath: text('file_path'),
-  fileSize: integer('file_size'),
-  s3Key: text('s3_key'),
-  uploadStatus: text('upload_status').default('pending'),
-  errorMessage: text('error_message'),
-  uploadedAt: integer('uploaded_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});
+export const episodes = sqliteTable(
+  'episodes',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    seasonId: integer('season_id').references(() => seasons.id).notNull(),
+    episodeNumber: integer('episode_number').notNull(),
+    title: text('title'),
+    filePath: text('file_path'),
+    fileSize: integer('file_size'),
+    s3Key: text('s3_key'),
+    uploadStatus: text('upload_status', { enum: ['uploading', 'uploaded', 'failed'] })
+      .default('uploading')
+      .notNull(),
+    errorMessage: text('error_message'),
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check(
+      'episodes_upload_status_check',
+      sql`${table.uploadStatus} in ('uploading', 'uploaded', 'failed')`
+    ),
+  ]
+);
 
 // Movies table
-export const movies = sqliteTable('movies', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  tmdbId: integer('tmdb_id').unique().notNull(),
-  title: text('title').notNull(),
-  year: integer('year'),
-  filePath: text('file_path'),
-  fileSize: integer('file_size'),
-  s3Key: text('s3_key'),
-  uploadStatus: text('upload_status').default('pending'),
-  errorMessage: text('error_message'),
-  uploadedAt: integer('uploaded_at', { mode: 'timestamp' }),
-  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});
+export const movies = sqliteTable(
+  'movies',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    tmdbId: integer('tmdb_id').unique().notNull(),
+    title: text('title').notNull(),
+    year: integer('year'),
+    filePath: text('file_path'),
+    fileSize: integer('file_size'),
+    s3Key: text('s3_key'),
+    uploadStatus: text('upload_status', { enum: ['uploading', 'uploaded', 'failed'] })
+      .default('uploading')
+      .notNull(),
+    errorMessage: text('error_message'),
+    uploadedAt: integer('uploaded_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check(
+      'movies_upload_status_check',
+      sql`${table.uploadStatus} in ('uploading', 'uploaded', 'failed')`
+    ),
+  ]
+);
 
 // Upload logs table
 export const uploadLogs = sqliteTable('upload_logs', {
