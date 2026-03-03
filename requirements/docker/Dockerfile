@@ -31,9 +31,6 @@ COPY --from=builder /app/node_modules ./node_modules
 
 USER nodejs
 
-# Create data directory
-RUN mkdir -p /data
-
 # Expose port
 EXPOSE 3000
 
