@@ -1,0 +1,102 @@
+services:
+  prowlarr:
+    image: linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - prowlarr_config:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - WEBUI_PORT=8080
+    volumes:
+      - qbittorrent_config:/config
+      - downloads:/downloads
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  sonarr:
+    image: linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - sonarr_config:/config
+      - downloads:/downloads
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - radarr_config:/config
+      - downloads:/downloads
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+
+  overseerr:
+    image: linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - overseerr_config:/config
+    ports:
+      - "5055:5055"
+    restart: unless-stopped
+
+  webhook:
+    build:
+      context: .
+      dockerfile: requirements/docker/Dockerfile
+    container_name: acquirer-webhook
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - S3_BUCKET=${S3_BUCKET}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./data:/data
+      - downloads:/downloads:ro
+    ports:
+      - "8000:3000"
+    depends_on:
+      - sonarr
+      - radarr
+    restart: unless-stopped
+
+volumes:
+  prowlarr_config:
+  qbittorrent_config:
+  sonarr_config:
+  radarr_config:
+  overseerr_config:
+  downloads:
