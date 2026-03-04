@@ -27,8 +27,12 @@ export class RadarrClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
 
-  constructor(baseUrl = process.env.RADARR_URL ?? 'http://radarr:7878', apiKey = process.env.RADARR_API_KEY ?? '') {
-    if (!apiKey) {
+  constructor(baseUrl: string, apiKey: string) {
+    if (!baseUrl.trim()) {
+      throw new Error('RADARR_URL is required');
+    }
+
+    if (!apiKey.trim()) {
       throw new Error('RADARR_API_KEY is required');
     }
 

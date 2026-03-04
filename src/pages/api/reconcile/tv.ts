@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { or, eq } from 'drizzle-orm';
+import { SONARR_API_KEY, SONARR_URL } from 'astro:env/server';
 import { db } from '@/db';
 import { episodes, seasons, series } from '@/db/schema';
 import { ProcessEpisode, jobRunner } from '@/lib/jobs';
@@ -11,7 +12,7 @@ function buildEpisodeKey(tmdbid: number, seasonNumber: number, episodeNumber: nu
 
 export const GET: APIRoute = async () => {
   try {
-    const sonarrClient = new SonarrClient();
+    const sonarrClient = new SonarrClient(SONARR_URL, SONARR_API_KEY);
     const downloadedEpisodes = await sonarrClient.getDownloadedEpisodes();
 
     const existingEpisodes = await db
@@ -45,6 +46,7 @@ export const GET: APIRoute = async () => {
     }
 
     const queuedJobIds: number[] = [];
+    const reconciledEpisodes: Array<{ showTitle: string; seasonNumber: number; episodeNumber: number }> = [];
     let skippedExistingDb = 0;
     let skippedInFlight = 0;
 
@@ -76,6 +78,14 @@ export const GET: APIRoute = async () => {
       });
       jobRunner.enqueue(job);
       queuedJobIds.push(job.id);
+      reconciledEpisodes.push({
+        showTitle: episode.showTitle,
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+      });
+      console.log(
+        `Reconciled TV episode: ${episode.showTitle} S${episode.seasonNumber}E${episode.episodeNumber}`
+      );
       inFlightKeys.add(episodeKey);
     }
 
@@ -87,6 +97,7 @@ export const GET: APIRoute = async () => {
         skipped_existing_db: skippedExistingDb,
         skipped_in_flight: skippedInFlight,
         job_ids: queuedJobIds,
+        reconciled_episodes: reconciledEpisodes,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );

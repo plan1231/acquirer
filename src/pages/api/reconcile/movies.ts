@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { or, eq } from 'drizzle-orm';
+import { RADARR_API_KEY, RADARR_URL } from 'astro:env/server';
 import { db } from '@/db';
 import { movies } from '@/db/schema';
 import { ProcessMovie, jobRunner } from '@/lib/jobs';
@@ -11,7 +12,7 @@ function buildMovieKey(tmdbid: number, filePath: string): string {
 
 export const GET: APIRoute = async () => {
   try {
-    const radarrClient = new RadarrClient();
+    const radarrClient = new RadarrClient(RADARR_URL, RADARR_API_KEY);
     const downloadedMovies = await radarrClient.getDownloadedMovies();
 
     const existingMovies = await db

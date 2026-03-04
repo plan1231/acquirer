@@ -38,8 +38,12 @@ export class SonarrClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
 
-  constructor(baseUrl = process.env.SONARR_URL ?? 'http://sonarr:8989', apiKey = process.env.SONARR_API_KEY ?? '') {
-    if (!apiKey) {
+  constructor(baseUrl: string, apiKey: string) {
+    if (!baseUrl.trim()) {
+      throw new Error('SONARR_URL is required');
+    }
+
+    if (!apiKey.trim()) {
       throw new Error('SONARR_API_KEY is required');
     }
 
@@ -48,10 +52,8 @@ export class SonarrClient {
   }
 
   async getDownloadedEpisodes(): Promise<DownloadedEpisode[]> {
-    const [seriesList, episodeList] = await Promise.all([
-      this.fetchJson<SonarrSeries[]>('/series'),
-      this.fetchJson<SonarrEpisode[]>('/episode?includeEpisodeFile=true'),
-    ]);
+    const seriesList = await this.fetchJson<SonarrSeries[]>('/series');
+    const episodeList = await this.fetchEpisodesForSeries(seriesList);
 
     const episodeFileIdsToFetch = new Set<number>();
     for (const episode of episodeList) {
@@ -115,6 +117,34 @@ export class SonarrClient {
     }
 
     return downloadedEpisodes;
+  }
+
+  private async fetchEpisodesForSeries(seriesList: SonarrSeries[]): Promise<SonarrEpisode[]> {
+    const seriesIds = seriesList
+      .map((series) => series.id)
+      .filter((id): id is number => typeof id === 'number');
+
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    const batchSize = 10;
+    const episodes: SonarrEpisode[] = [];
+
+    for (let i = 0; i < seriesIds.length; i += batchSize) {
+      const batchSeriesIds = seriesIds.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batchSeriesIds.map((seriesId) =>
+          this.fetchJson<SonarrEpisode[]>(`/episode?seriesId=${seriesId}&includeEpisodeFile=true`)
+        )
+      );
+
+      for (const seriesEpisodes of batchResults) {
+        episodes.push(...seriesEpisodes);
+      }
+    }
+
+    return episodes;
   }
 
   private async fetchEpisodeFilesByIds(episodeFileIds: number[]): Promise<SonarrEpisodeFile[]> {
