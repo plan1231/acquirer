@@ -16,10 +16,7 @@ export const GET: APIRoute = async () => {
 
     const existingEpisodes = await db
       .select({
-        tmdbid: series.tmdbid,
-        seasonNumber: seasons.seasonNumber,
-        episodeNumber: episodes.episodeNumber,
-        filePath: episodes.filePath,
+        key: episodes.s3Key
       })
       .from(episodes)
       .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
@@ -28,18 +25,8 @@ export const GET: APIRoute = async () => {
 
     const existingKeys = new Set<string>();
     for (const existingEpisode of existingEpisodes) {
-      if (!existingEpisode.filePath) {
-        continue;
-      }
-
-      existingKeys.add(
-        buildEpisodeKey(
-          existingEpisode.tmdbid,
-          existingEpisode.seasonNumber,
-          existingEpisode.episodeNumber,
-          existingEpisode.filePath
-        )
-      );
+      if(existingEpisode.key === null) throw new Error("WTF no key when adding existing episode to set");
+      existingKeys.add(existingEpisode.key);
     }
 
     const inFlightKeys = new Set<string>();

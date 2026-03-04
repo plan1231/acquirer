@@ -48,11 +48,24 @@ export class SonarrClient {
   }
 
   async getDownloadedEpisodes(): Promise<DownloadedEpisode[]> {
-    const [seriesList, episodeList, episodeFiles] = await Promise.all([
+    const [seriesList, episodeList] = await Promise.all([
       this.fetchJson<SonarrSeries[]>('/series'),
-      this.fetchJson<SonarrEpisode[]>('/episode'),
-      this.fetchJson<SonarrEpisodeFile[]>('/episodefile'),
+      this.fetchJson<SonarrEpisode[]>('/episode?includeEpisodeFile=true'),
     ]);
+
+    const episodeFileIdsToFetch = new Set<number>();
+    for (const episode of episodeList) {
+      if (!episode.hasFile) {
+        continue;
+      }
+
+      const hasEmbeddedPath = isNonEmptyString(episode.episodeFile?.path);
+      if (!hasEmbeddedPath && typeof episode.episodeFileId === 'number') {
+        episodeFileIdsToFetch.add(episode.episodeFileId);
+      }
+    }
+
+    const episodeFiles = await this.fetchEpisodeFilesByIds([...episodeFileIdsToFetch]);
 
     const seriesById = new Map<number, SonarrSeries>();
     for (const entry of seriesList) {
@@ -102,6 +115,26 @@ export class SonarrClient {
     }
 
     return downloadedEpisodes;
+  }
+
+  private async fetchEpisodeFilesByIds(episodeFileIds: number[]): Promise<SonarrEpisodeFile[]> {
+    if (episodeFileIds.length === 0) {
+      return [];
+    }
+
+    const chunkSize = 100;
+    const episodeFiles: SonarrEpisodeFile[] = [];
+    for (let i = 0; i < episodeFileIds.length; i += chunkSize) {
+      const params = new URLSearchParams();
+      for (const id of episodeFileIds.slice(i, i + chunkSize)) {
+        params.append('episodeFileIds', String(id));
+      }
+
+      const filesChunk = await this.fetchJson<SonarrEpisodeFile[]>(`/episodefile?${params.toString()}`);
+      episodeFiles.push(...filesChunk);
+    }
+
+    return episodeFiles;
   }
 
   private normalizeBaseUrl(url: string): string {

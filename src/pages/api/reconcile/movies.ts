@@ -16,19 +16,15 @@ export const GET: APIRoute = async () => {
 
     const existingMovies = await db
       .select({
-        tmdbid: movies.tmdbid,
-        filePath: movies.filePath,
+        s3Key: movies.s3Key,
       })
       .from(movies)
       .where(or(eq(movies.uploadStatus, 'uploaded'), eq(movies.uploadStatus, 'uploading')));
 
     const existingKeys = new Set<string>();
     for (const movie of existingMovies) {
-      if (!movie.filePath) {
-        continue;
-      }
-
-      existingKeys.add(buildMovieKey(movie.tmdbid, movie.filePath));
+      if(movie.s3Key === null) throw new Error("wtf");
+      existingKeys.add(movie.s3Key);
     }
 
     const inFlightKeys = new Set<string>();
