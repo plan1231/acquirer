@@ -20,6 +20,10 @@ interface RadarrPayload {
   eventType: string;
   movie?: RadarrMovie;
   movieFile?: RadarrMovieFile;
+  downloadId?: string;
+  downloadClient?: string;
+  downloadClientType?: string;
+  isUpgrade?: boolean;
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -28,8 +32,9 @@ export const POST: APIRoute = async ({ request }) => {
     const payload: RadarrPayload = await request.json();
     console.log(`Received Radarr webhook: ${payload.eventType}`);
 
-    // Only handle import events
-    if (!['OnImport', 'OnDownload', 'MovieImported'].includes(payload.eventType)) {
+    // Radarr "On Download" webhook payload emits eventType "Download".
+    // This event is sent after import for a new download.
+    if (payload.eventType !== 'Download') {
       return new Response(
         JSON.stringify({
           success: true,
@@ -116,7 +121,9 @@ export const POST: APIRoute = async ({ request }) => {
       errorMessage: uploadResult.error || null,
     });
 
-    console.log(`Processed movie ${title} (TMDB: ${tmdbId}, Year: ${year})`);
+    console.log(
+      `Processed Radarr Download webhook for ${title} (TMDB: ${tmdbId}, Year: ${year}, downloadId: ${payload.downloadId || 'n/a'})`
+    );
 
     return new Response(JSON.stringify({ success: true, message: 'Webhook processed' }), {
       status: 200,

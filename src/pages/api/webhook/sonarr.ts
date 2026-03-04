@@ -8,12 +8,13 @@ import { uploadFile, generateS3Key } from '@/lib/s3';
 interface SonarrEpisodeFile {
   path: string;
   size: number;
+  sourcePath?: string;
 }
 
 interface SonarrSeries {
   tvdbId: number;
   title: string;
-  firstAirDate?: string;
+  year?: number;
 }
 
 interface SonarrEpisode {
@@ -27,8 +28,8 @@ interface SonarrPayload {
   series?: SonarrSeries;
   episodes?: SonarrEpisode[];
   episodeFile?: SonarrEpisodeFile;
-  seasonNumber?: number;
-  episodeNumber?: number;
+  episodeFiles?: SonarrEpisodeFile[];
+  downloadId?: string;
 }
 
 export const POST: APIRoute = async ({ request }) => {
@@ -37,8 +38,8 @@ export const POST: APIRoute = async ({ request }) => {
     const payload: SonarrPayload = await request.json();
     console.log(`Received Sonarr webhook: ${payload.eventType}`);
 
-    // Only handle import events
-    if (!['OnImport', 'OnDownload'].includes(payload.eventType)) {
+    // Sonarr webhook EventType is "Download" for both OnDownload and OnImportComplete.
+    if (payload.eventType !== 'Download') {
       return new Response(
         JSON.stringify({
           success: true,
@@ -48,9 +49,28 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    if (!payload.series || !payload.episodeFile) {
+    // Ignore OnImportComplete payloads to prevent duplicate processing.
+    // OnImportComplete payloads include episodeFiles[] (plural), while OnDownload includes episodeFile.
+    if (!payload.episodeFile) {
+      if (payload.episodeFiles && payload.episodeFiles.length > 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Ignored OnImportComplete Download webhook to avoid duplicate episode processing',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing series or episode file data' }),
+        JSON.stringify({ success: false, error: 'Missing episodeFile payload for OnDownload event' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!payload.series || !payload.episodes || payload.episodes.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required series/episodes metadata' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -70,9 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
     let seriesId: number;
 
     if (!existingSeries) {
-      const firstAirYear = payload.series.firstAirDate
-        ? parseInt(payload.series.firstAirDate.slice(0, 4))
-        : null;
+      const firstAirYear = payload.series.year ?? null;
 
       const result = await db.insert(series).values({
         tvdbId,
@@ -84,59 +102,20 @@ export const POST: APIRoute = async ({ request }) => {
       seriesId = existingSeries.id;
     }
 
-    // Process episodes
-    if (payload.episodes && payload.episodes.length > 0) {
-      // Bulk import - handle multiple episodes
-      const seasonEpsMap = new Map<number, SonarrEpisode[]>();
+    const insertedEpisodeIds: number[] = [];
 
-      for (const ep of payload.episodes) {
-        const seasonNum = ep.seasonNumber || 1;
-        if (!seasonEpsMap.has(seasonNum)) {
-          seasonEpsMap.set(seasonNum, []);
-        }
-        seasonEpsMap.get(seasonNum)!.push(ep);
+    // Group episodes by season so we can create/reuse seasons efficiently.
+    const seasonEpsMap = new Map<number, SonarrEpisode[]>();
+
+    for (const ep of payload.episodes) {
+      const seasonNum = ep.seasonNumber || 1;
+      if (!seasonEpsMap.has(seasonNum)) {
+        seasonEpsMap.set(seasonNum, []);
       }
+      seasonEpsMap.get(seasonNum)!.push(ep);
+    }
 
-      for (const [seasonNum, eps] of seasonEpsMap) {
-        // Get or create season
-        let existingSeason = await db
-          .select()
-          .from(seasons)
-          .where(and(eq(seasons.seriesId, seriesId), eq(seasons.seasonNumber, seasonNum)))
-          .then((rows) => rows[0]);
-
-        let seasonId: number;
-
-        if (!existingSeason) {
-          const result = await db.insert(seasons).values({
-            seriesId,
-            seasonNumber: seasonNum,
-          });
-          seasonId = Number(result.lastInsertRowid);
-        } else {
-          seasonId = existingSeason.id;
-        }
-
-        // Create episode records
-        for (const ep of eps) {
-          await db.insert(episodes).values({
-            seasonId,
-            episodeNumber: ep.episodeNumber || 1,
-            title: ep.title || '',
-            filePath,
-            fileSize,
-            uploadStatus: 'uploading',
-          });
-        }
-      }
-
-      console.log(`Processed ${payload.episodes.length} episodes for series ${title} (TVDB: ${tvdbId})`);
-    } else {
-      // Single episode
-      const seasonNum = payload.seasonNumber || 1;
-      const episodeNum = payload.episodeNumber || 1;
-
-      // Get or create season
+    for (const [seasonNum, seasonEpisodes] of seasonEpsMap) {
       let existingSeason = await db
         .select()
         .from(seasons)
@@ -155,26 +134,45 @@ export const POST: APIRoute = async ({ request }) => {
         seasonId = existingSeason.id;
       }
 
-      // Create episode record
-      const result = await db.insert(episodes).values({
-        seasonId,
-        episodeNumber: episodeNum,
-        title: '',
-        filePath,
-        fileSize,
-        uploadStatus: 'uploading',
-      });
+      for (const ep of seasonEpisodes) {
+        const episodeNumber = ep.episodeNumber || 1;
 
-      const episodeId = Number(result.lastInsertRowid);
+        // Idempotency: skip creating a duplicate row for the same imported file+episode.
+        const existingEpisode = await db
+          .select()
+          .from(episodes)
+          .where(
+            and(
+              eq(episodes.seasonId, seasonId),
+              eq(episodes.episodeNumber, episodeNumber),
+              eq(episodes.filePath, filePath)
+            )
+          )
+          .then((rows) => rows[0]);
 
-      // Trigger upload
-      const filename = filePath.split('/').pop() || 'video';
-      const s3Key = generateS3Key('episode', tvdbId, filename);
+        if (existingEpisode) {
+          insertedEpisodeIds.push(existingEpisode.id);
+          continue;
+        }
 
-      // Perform upload
-      const uploadResult = await uploadFile(filePath, s3Key);
+        const inserted = await db.insert(episodes).values({
+          seasonId,
+          episodeNumber,
+          title: ep.title || '',
+          filePath,
+          fileSize,
+          uploadStatus: 'uploading',
+        });
 
-      // Update episode status
+        insertedEpisodeIds.push(Number(inserted.lastInsertRowid));
+      }
+    }
+
+    const filename = filePath.split('/').pop() || 'video';
+    const s3Key = generateS3Key('episode', tvdbId, filename);
+    const uploadResult = await uploadFile(filePath, s3Key);
+
+    for (const episodeId of insertedEpisodeIds) {
       await db
         .update(episodes)
         .set({
@@ -185,7 +183,6 @@ export const POST: APIRoute = async ({ request }) => {
         })
         .where(eq(episodes.id, episodeId));
 
-      // Log the upload
       await db.insert(uploadLogs).values({
         mediaType: 'episode',
         mediaId: episodeId,
@@ -196,9 +193,11 @@ export const POST: APIRoute = async ({ request }) => {
         status: uploadResult.success ? 'uploaded' : 'failed',
         errorMessage: uploadResult.error || null,
       });
-
-      console.log(`Processed single episode ${title} S${seasonNum}E${episodeNum} (TVDB: ${tvdbId})`);
     }
+
+    console.log(
+      `Processed Sonarr Download webhook for ${title} (TVDB: ${tvdbId}) - ${insertedEpisodeIds.length} episode(s), downloadId=${payload.downloadId || 'n/a'}`
+    );
 
     return new Response(JSON.stringify({ success: true, message: 'Webhook processed' }), {
       status: 200,
