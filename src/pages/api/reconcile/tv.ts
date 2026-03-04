@@ -1,13 +1,16 @@
 import type { APIRoute } from 'astro';
+import path from 'node:path';
 import { or, eq } from 'drizzle-orm';
 import { SONARR_API_KEY, SONARR_URL } from 'astro:env/server';
 import { db } from '@/db';
-import { episodes, seasons, series } from '@/db/schema';
+import { episodes, series } from '@/db/schema';
 import { ProcessEpisode, jobRunner } from '@/lib/jobs';
+import { generateEpisodeS3Key } from '@/lib/s3';
 import { SonarrClient } from '@/lib/sonarrClient';
 
 function buildEpisodeKey(tmdbid: number, seasonNumber: number, episodeNumber: number, filePath: string): string {
-  return `${tmdbid}|${seasonNumber}|${episodeNumber}|${filePath}`;
+  const filename = path.basename(filePath);
+  return generateEpisodeS3Key(tmdbid, seasonNumber, episodeNumber, filename);
 }
 
 export const GET: APIRoute = async () => {
@@ -17,17 +20,29 @@ export const GET: APIRoute = async () => {
 
     const existingEpisodes = await db
       .select({
-        key: episodes.s3Key
+        seriesTmdbid: series.tmdbid,
+        seasonNumber: episodes.seasonNumber,
+        episodeNumber: episodes.episodeNumber,
+        filePath: episodes.filePath,
       })
       .from(episodes)
-      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .innerJoin(series, eq(seasons.seriesTmdbid, series.tmdbid))
+      .innerJoin(series, eq(episodes.seriesTmdbid, series.tmdbid))
       .where(or(eq(episodes.uploadStatus, 'uploaded'), eq(episodes.uploadStatus, 'uploading')));
 
     const existingKeys = new Set<string>();
     for (const existingEpisode of existingEpisodes) {
-      if(existingEpisode.key === null) throw new Error("WTF no key when adding existing episode to set");
-      existingKeys.add(existingEpisode.key);
+      if (existingEpisode.filePath === null) {
+        console.log(`skipping episode ${existingEpisode.seriesTmdbid} S${existingEpisode.seasonNumber}E${existingEpisode.episodeNumber} due to missing file path`);
+        continue;
+      }
+      existingKeys.add(
+        buildEpisodeKey(
+          existingEpisode.seriesTmdbid,
+          existingEpisode.seasonNumber,
+          existingEpisode.episodeNumber,
+          existingEpisode.filePath
+        )
+      );
     }
 
     const inFlightKeys = new Set<string>();

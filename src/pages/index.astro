@@ -2,7 +2,7 @@
 import Layout from '@/layouts/Layout.astro';
 import '@/styles/global.css';
 import { db } from '@/db';
-import { episodes, movies, seasons, series } from '@/db/schema';
+import { episodes, movies, series } from '@/db/schema';
 import { asc, desc, eq } from 'drizzle-orm';
 
 interface MovieRow {
@@ -71,8 +71,7 @@ try {
         episodeFileSize: episodes.fileSize,
       })
       .from(series)
-      .leftJoin(seasons, eq(seasons.seriesTmdbid, series.tmdbid))
-      .leftJoin(episodes, eq(episodes.seasonId, seasons.id))
+      .leftJoin(episodes, eq(episodes.seriesTmdbid, series.tmdbid))
       .orderBy(asc(series.title)),
     db
       .select({
@@ -87,14 +86,13 @@ try {
       .select({
         id: episodes.id,
         seriesTitle: series.title,
-        seasonNumber: seasons.seasonNumber,
+        seasonNumber: episodes.seasonNumber,
         episodeNumber: episodes.episodeNumber,
         episodeTitle: episodes.title,
         createdAt: episodes.createdAt,
       })
       .from(episodes)
-      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .innerJoin(series, eq(seasons.seriesTmdbid, series.tmdbid))
+      .innerJoin(series, eq(episodes.seriesTmdbid, series.tmdbid))
       .where(eq(episodes.uploadStatus, 'uploading'))
       .orderBy(desc(episodes.createdAt)),
     db
@@ -111,15 +109,14 @@ try {
       .select({
         id: episodes.id,
         seriesTitle: series.title,
-        seasonNumber: seasons.seasonNumber,
+        seasonNumber: episodes.seasonNumber,
         episodeNumber: episodes.episodeNumber,
         episodeTitle: episodes.title,
         createdAt: episodes.createdAt,
         errorMessage: episodes.errorMessage,
       })
       .from(episodes)
-      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .innerJoin(series, eq(seasons.seriesTmdbid, series.tmdbid))
+      .innerJoin(series, eq(episodes.seriesTmdbid, series.tmdbid))
       .where(eq(episodes.uploadStatus, 'failed'))
       .orderBy(desc(episodes.createdAt)),
   ]);

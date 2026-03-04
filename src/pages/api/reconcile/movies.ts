@@ -1,13 +1,16 @@
 import type { APIRoute } from 'astro';
+import path from 'node:path';
 import { or, eq } from 'drizzle-orm';
 import { RADARR_API_KEY, RADARR_URL } from 'astro:env/server';
 import { db } from '@/db';
 import { movies } from '@/db/schema';
 import { ProcessMovie, jobRunner } from '@/lib/jobs';
 import { RadarrClient } from '@/lib/radarrClient';
+import { generateMovieS3Key } from '@/lib/s3';
 
 function buildMovieKey(tmdbid: number, filePath: string): string {
-  return `${tmdbid}|${filePath}`;
+  const filename = path.basename(filePath);
+  return generateMovieS3Key(tmdbid, filename);
 }
 
 export const GET: APIRoute = async () => {
@@ -17,15 +20,19 @@ export const GET: APIRoute = async () => {
 
     const existingMovies = await db
       .select({
-        s3Key: movies.s3Key,
+        tmdbid: movies.tmdbid,
+        filePath: movies.filePath,
       })
       .from(movies)
       .where(or(eq(movies.uploadStatus, 'uploaded'), eq(movies.uploadStatus, 'uploading')));
 
     const existingKeys = new Set<string>();
     for (const movie of existingMovies) {
-      if(movie.s3Key === null) throw new Error("wtf");
-      existingKeys.add(movie.s3Key);
+      if (movie.filePath === null) {
+        console.log(`skipping movie ${movie.tmdbid} due to missing filepath`);
+        continue;
+      }
+      existingKeys.add(buildMovieKey(movie.tmdbid, movie.filePath));
     }
 
     const inFlightKeys = new Set<string>();

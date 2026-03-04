@@ -2,7 +2,8 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { episodes, seasons, series, uploadLogs } from '@/db/schema';
+import { episodes, series, uploadLogs } from '@/db/schema';
+import { S3_BUCKET } from 'astro:env/server';
 import { generateEpisodeS3Key, uploadFile } from '@/lib/s3';
 import { Job } from './job';
 
@@ -16,63 +17,36 @@ export interface ProcessEpisodeInput {
 }
 
 export class ProcessEpisode extends Job<ProcessEpisodeInput> {
+  private uploadProgressPercent: number | null = null;
+
   describe(): string {
     const { tmdbid, showTitle, season, episodeNumber, episodeTitle, importedFilePath } = this.input;
-    return `tmdbid=${tmdbid}, showTitle=${showTitle}, season=${season}, episode=${episodeNumber}, episodeTitle=${episodeTitle}, importedFilePath=${importedFilePath}`;
+    return `tmdbid=${tmdbid}, showTitle=${showTitle}, season=${season}, episode=${episodeNumber}, episodeTitle=${episodeTitle}, importedFilePath=${importedFilePath}, uploadProgress=${this.uploadProgressPercent}`;
   }
 
   protected async runInternal(): Promise<void> {
     const { tmdbid, showTitle, season, episodeNumber, episodeTitle, importedFilePath: filePath } = this.input;
     const { size: fileSize } = await stat(filePath);
 
-    const existingSeries = await db
-      .select()
-      .from(series)
-      .where(eq(series.tmdbid, tmdbid))
-      .then((rows) => rows[0]);
-
-    const seriesTmdbid = existingSeries?.tmdbid ?? tmdbid;
-
-    if (!existingSeries) {
-      await db.insert(series).values({
+    await db
+      .insert(series)
+      .values({
         tmdbid,
         title: showTitle,
+      })
+      .onConflictDoNothing({
+        target: series.tmdbid,
       });
-    } else {
-      await db
-        .update(series)
-        .set({
-          title: showTitle,
-        })
-        .where(eq(series.tmdbid, tmdbid));
-    }
 
-    const existingSeason = await db
-      .select()
-      .from(seasons)
-      .where(and(eq(seasons.seriesTmdbid, seriesTmdbid), eq(seasons.seasonNumber, season)))
-      .then((rows) => rows[0]);
-
-    let seasonId: number;
-    if (!existingSeason) {
-      const [insertedSeason] = await db
-        .insert(seasons)
-        .values({
-          seriesTmdbid,
-          seasonNumber: season,
-        })
-        .returning({ id: seasons.id });
-      seasonId = insertedSeason.id;
-    } else {
-      seasonId = existingSeason.id;
-    }
+    const seriesTmdbid = tmdbid;
 
     const existingEpisode = await db
       .select()
       .from(episodes)
       .where(
         and(
-          eq(episodes.seasonId, seasonId),
+          eq(episodes.seriesTmdbid, seriesTmdbid),
+          eq(episodes.seasonNumber, season),
           eq(episodes.episodeNumber, episodeNumber),
           eq(episodes.filePath, filePath)
         )
@@ -84,7 +58,8 @@ export class ProcessEpisode extends Job<ProcessEpisodeInput> {
       const [insertedEpisode] = await db
         .insert(episodes)
         .values({
-          seasonId,
+          seriesTmdbid,
+          seasonNumber: season,
           episodeNumber,
           title: episodeTitle,
           filePath,
@@ -108,8 +83,11 @@ export class ProcessEpisode extends Job<ProcessEpisodeInput> {
 
     const filename = path.basename(filePath) || 'video';
     const s3Key = generateEpisodeS3Key(tmdbid, season, episodeNumber, filename);
-    const uploadResult = await uploadFile(filePath, s3Key);
-
+    const uploadResult = await uploadFile(filePath, s3Key, {
+      onProgress: ({ percent }) => {
+        this.uploadProgressPercent = Math.round(percent);
+      },
+    });
     await db
       .update(episodes)
       .set({
@@ -126,7 +104,7 @@ export class ProcessEpisode extends Job<ProcessEpisodeInput> {
       filePath,
       fileSize,
       s3Key,
-      s3Bucket: process.env.S3_BUCKET || '',
+      s3Bucket: S3_BUCKET,
       status: uploadResult.success ? 'uploaded' : 'failed',
       errorMessage: uploadResult.error || null,
     });

@@ -9,20 +9,13 @@ export const series = pgTable('series', {
   title: text('title').notNull(),
 });
 
-// Seasons table
-export const seasons = pgTable('seasons', {
+// Episodes table
+export const episodes = pgTable('episodes', {
   id: serial('id').primaryKey(),
   seriesTmdbid: integer('series_tmdbid')
     .references(() => series.tmdbid)
     .notNull(),
-  seasonNumber: integer('season_number').notNull(),
-});
-
-// Episodes table
-export const episodes = pgTable('episodes', {
-  id: serial('id').primaryKey(),
-  seasonId: integer('season_id')
-    .references(() => seasons.id)
+  seasonNumber: integer('season_number')
     .notNull(),
   episodeNumber: integer('episode_number').notNull(),
   title: text('title'),
@@ -64,20 +57,12 @@ export const uploadLogs = pgTable('upload_logs', {
 
 // Relations
 export const seriesRelations = relations(series, ({ many }) => ({
-  seasons: many(seasons),
-}));
-
-export const seasonsRelations = relations(seasons, ({ one, many }) => ({
-  series: one(series, {
-    fields: [seasons.seriesTmdbid],
-    references: [series.tmdbid],
-  }),
   episodes: many(episodes),
 }));
 
 export const episodesRelations = relations(episodes, ({ one }) => ({
-  season: one(seasons, {
-    fields: [episodes.seasonId],
-    references: [seasons.id],
+  series: one(series, {
+    fields: [episodes.seriesTmdbid],
+    references: [series.tmdbid],
   }),
 }));

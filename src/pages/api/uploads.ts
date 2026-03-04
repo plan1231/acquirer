@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db } from '@/db';
-import { movies, episodes, seasons, series } from '@/db/schema';
+import { movies, episodes, series } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 
 export const GET: APIRoute = async () => {
@@ -28,7 +28,7 @@ export const GET: APIRoute = async () => {
         id: episodes.id,
         title: episodes.title,
         episodeNumber: episodes.episodeNumber,
-        seasonNumber: seasons.seasonNumber,
+        seasonNumber: episodes.seasonNumber,
         seriesTitle: series.title,
         filePath: episodes.filePath,
         fileSize: episodes.fileSize,
@@ -39,8 +39,7 @@ export const GET: APIRoute = async () => {
         createdAt: episodes.createdAt,
       })
       .from(episodes)
-      .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .innerJoin(series, eq(seasons.seriesTmdbid, series.tmdbid))
+      .innerJoin(series, eq(episodes.seriesTmdbid, series.tmdbid))
       .orderBy(desc(episodes.createdAt))
       .limit(10);
 
