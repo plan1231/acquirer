@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request }) => {
     const db = getDb();
     const payload: RadarrPayload = await request.json();
     console.log(`Received Radarr webhook: ${payload.eventType}`);
-
+    console.log(payload);
     // Radarr "On Download" webhook payload emits eventType "Download".
     // This event is sent after import for a new download.
     if (payload.eventType !== 'Download') {

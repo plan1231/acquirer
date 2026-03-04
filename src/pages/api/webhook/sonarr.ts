@@ -37,7 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
     const db = getDb();
     const payload: SonarrPayload = await request.json();
     console.log(`Received Sonarr webhook: ${payload.eventType}`);
-
+    console.log(payload);
     // Sonarr webhook EventType is "Download" for both OnDownload and OnImportComplete.
     if (payload.eventType !== 'Download') {
       return new Response(
