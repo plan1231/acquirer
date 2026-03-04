@@ -32,7 +32,7 @@ export const GET: APIRoute = async () => {
     }
 
     const inFlightKeys = new Set<string>();
-    for (const job of jobRunner.getAllJobs()) {
+    for (const job of jobRunner.getJobs()) {
       if (!(job instanceof ProcessMovie)) {
         continue;
       }
