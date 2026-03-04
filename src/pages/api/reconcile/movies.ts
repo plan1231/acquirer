@@ -1,9 +1,7 @@
 import type { APIRoute } from 'astro';
 import path from 'node:path';
-import { or, eq } from 'drizzle-orm';
 import { RADARR_API_KEY, RADARR_URL } from 'astro:env/server';
 import { db } from '@/db';
-import { movies } from '@/db/schema';
 import { ProcessMovie, jobRunner } from '@/lib/jobs';
 import { RadarrClient } from '@/lib/radarrClient';
 import { generateMovieS3Key } from '@/lib/s3';
@@ -18,13 +16,14 @@ export const GET: APIRoute = async () => {
     const radarrClient = new RadarrClient(RADARR_URL, RADARR_API_KEY);
     const downloadedMovies = await radarrClient.getDownloadedMovies();
 
-    const existingMovies = await db
-      .select({
-        tmdbid: movies.tmdbid,
-        filePath: movies.filePath,
-      })
-      .from(movies)
-      .where(or(eq(movies.uploadStatus, 'uploaded'), eq(movies.uploadStatus, 'uploading')));
+    const existingMovies = await db.query.movies.findMany({
+      columns: {
+        tmdbid: true,
+        filePath: true,
+      },
+      where: (movie, { or, eq }) =>
+        or(eq(movie.uploadStatus, 'uploaded'), eq(movie.uploadStatus, 'uploading')),
+    });
 
     const existingKeys = new Set<string>();
     for (const movie of existingMovies) {

@@ -1,7 +1,8 @@
 CREATE TYPE "public"."upload_status" AS ENUM('uploading', 'uploaded', 'failed');--> statement-breakpoint
 CREATE TABLE "episodes" (
 	"id" serial PRIMARY KEY NOT NULL,
-	"season_id" integer NOT NULL,
+	"series_tmdbid" integer NOT NULL,
+	"season_number" integer NOT NULL,
 	"episode_number" integer NOT NULL,
 	"title" text,
 	"file_path" text,
@@ -25,12 +26,6 @@ CREATE TABLE "movies" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "seasons" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"series_tmdbid" integer NOT NULL,
-	"season_number" integer NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "series" (
 	"tmdbid" integer PRIMARY KEY NOT NULL,
 	"title" text NOT NULL
@@ -49,5 +44,4 @@ CREATE TABLE "upload_logs" (
 	"logged_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "episodes" ADD CONSTRAINT "episodes_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "seasons" ADD CONSTRAINT "seasons_series_tmdbid_series_tmdbid_fk" FOREIGN KEY ("series_tmdbid") REFERENCES "public"."series"("tmdbid") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "episodes" ADD CONSTRAINT "episodes_series_tmdbid_series_tmdbid_fk" FOREIGN KEY ("series_tmdbid") REFERENCES "public"."series"("tmdbid") ON DELETE no action ON UPDATE no action;

@@ -1,9 +1,7 @@
 import type { APIRoute } from 'astro';
 import path from 'node:path';
-import { or, eq } from 'drizzle-orm';
 import { SONARR_API_KEY, SONARR_URL } from 'astro:env/server';
 import { db } from '@/db';
-import { episodes, series } from '@/db/schema';
 import { ProcessEpisode, jobRunner } from '@/lib/jobs';
 import { generateEpisodeS3Key } from '@/lib/s3';
 import { SonarrClient } from '@/lib/sonarrClient';
@@ -18,16 +16,16 @@ export const GET: APIRoute = async () => {
     const sonarrClient = new SonarrClient(SONARR_URL, SONARR_API_KEY);
     const downloadedEpisodes = await sonarrClient.getDownloadedEpisodes();
 
-    const existingEpisodes = await db
-      .select({
-        seriesTmdbid: series.tmdbid,
-        seasonNumber: episodes.seasonNumber,
-        episodeNumber: episodes.episodeNumber,
-        filePath: episodes.filePath,
-      })
-      .from(episodes)
-      .innerJoin(series, eq(episodes.seriesTmdbid, series.tmdbid))
-      .where(or(eq(episodes.uploadStatus, 'uploaded'), eq(episodes.uploadStatus, 'uploading')));
+    const existingEpisodes = await db.query.episodes.findMany({
+      columns: {
+        seriesTmdbid: true,
+        seasonNumber: true,
+        episodeNumber: true,
+        filePath: true,
+      },
+      where: (episode, { or, eq }) =>
+        or(eq(episode.uploadStatus, 'uploaded'), eq(episode.uploadStatus, 'uploading')),
+    });
 
     const existingKeys = new Set<string>();
     for (const existingEpisode of existingEpisodes) {

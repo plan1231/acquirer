@@ -1,5 +1,5 @@
 {
-  "id": "cb4a17c5-8b25-491c-8b0c-5e2d4634a1d7",
+  "id": "477db876-0772-4bc9-a649-9bf1a9688f3d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,8 +14,14 @@
           "primaryKey": true,
           "notNull": true
         },
-        "season_id": {
-          "name": "season_id",
+        "series_tmdbid": {
+          "name": "series_tmdbid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "season_number": {
+          "name": "season_number",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -80,15 +86,15 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "episodes_season_id_seasons_id_fk": {
-          "name": "episodes_season_id_seasons_id_fk",
+        "episodes_series_tmdbid_series_tmdbid_fk": {
+          "name": "episodes_series_tmdbid_series_tmdbid_fk",
           "tableFrom": "episodes",
-          "tableTo": "seasons",
+          "tableTo": "series",
           "columnsFrom": [
-            "season_id"
+            "series_tmdbid"
           ],
           "columnsTo": [
-            "id"
+            "tmdbid"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
@@ -164,51 +170,6 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.seasons": {
-      "name": "seasons",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "series_tmdbid": {
-          "name": "series_tmdbid",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "season_number": {
-          "name": "season_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "seasons_series_tmdbid_series_tmdbid_fk": {
-          "name": "seasons_series_tmdbid_series_tmdbid_fk",
-          "tableFrom": "seasons",
-          "tableTo": "series",
-          "columnsFrom": [
-            "series_tmdbid"
-          ],
-          "columnsTo": [
-            "tmdbid"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
