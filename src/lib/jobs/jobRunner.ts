@@ -9,6 +9,8 @@ export interface JobRunnerOptions {
 export class JobRunner {
   private readonly jobs = new Set<Job<object>>();
   private readonly semaphore: Semaphore;
+  private completedCount = 0;
+  private failedCount = 0;
 
   constructor(options: JobRunnerOptions) {
     this.semaphore = new Semaphore(options.concurrency);
@@ -20,9 +22,20 @@ export class JobRunner {
     void this.runWithSemaphore(typedJob);
   }
 
-
   getJobs(): readonly Job<object>[] {
     return Array.from(this.jobs);
+  }
+
+  getCompletedCount(): number {
+    return this.completedCount;
+  }
+
+  getFailedCount(): number {
+    return this.failedCount;
+  }
+
+  getTotalCount(): number {
+    return this.jobs.size + this.completedCount + this.failedCount;
   }
 
   private async runWithSemaphore(job: Job<object>): Promise<void> {
@@ -31,6 +44,11 @@ export class JobRunner {
       await job.run();
       assert.notEqual(job.status, 'pending', `Job ${job.id} should not be pending after run`);
     } finally {
+      if (job.status === 'complete') {
+        this.completedCount += 1;
+      } else if (job.status === 'failed') {
+        this.failedCount += 1;
+      }
       this.jobs.delete(job);
       this.semaphore.release();
     }

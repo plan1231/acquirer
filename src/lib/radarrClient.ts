@@ -1,16 +1,10 @@
 interface RadarrMovie {
   tmdbId?: number;
   title?: string;
-  hasFile?: boolean;
   movieFileId?: number;
   movieFile?: {
     path?: string;
   };
-}
-
-interface RadarrMovieFile {
-  id: number;
-  path?: string;
 }
 
 export interface DownloadedMovie {
@@ -41,36 +35,26 @@ export class RadarrClient {
   }
 
   async getDownloadedMovies(): Promise<DownloadedMovie[]> {
-    const [movieList, movieFiles] = await Promise.all([
-      this.fetchJson<RadarrMovie[]>('/movie'),
-      this.fetchJson<RadarrMovieFile[]>('/moviefile'),
-    ]);
-
-    const filePathById = new Map<number, string>();
-    for (const file of movieFiles) {
-      if (isNonEmptyString(file.path)) {
-        filePathById.set(file.id, file.path);
-      }
-    }
+    const movieList = await this.fetchJson<RadarrMovie[]>('/movie');
 
     const downloadedMovies: DownloadedMovie[] = [];
     for (const movie of movieList) {
-      if (!movie.hasFile || typeof movie.tmdbId !== 'number') {
+      if (typeof movie.tmdbId !== 'number') {
         continue;
       }
 
-      const filePath =
-        (isNonEmptyString(movie.movieFile?.path) && movie.movieFile.path) ||
-        (typeof movie.movieFileId === 'number' ? filePathById.get(movie.movieFileId) : undefined);
+      if (typeof movie.movieFileId !== 'number' || movie.movieFileId <= 0) {
+        continue;
+      }
 
-      if (!isNonEmptyString(filePath)) {
+      if (!isNonEmptyString(movie.movieFile?.path)) {
         continue;
       }
 
       downloadedMovies.push({
         tmdbid: movie.tmdbId,
         title: isNonEmptyString(movie.title) ? movie.title : `tmdb:${movie.tmdbId}`,
-        filePath,
+        filePath: movie.movieFile.path,
       });
     }
 
