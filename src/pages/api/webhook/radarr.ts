@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getDb } from '@/db';
+import { db } from '@/db';
 import { movies, uploadLogs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { uploadFile, generateS3Key } from '@/lib/s3';
@@ -13,7 +13,6 @@ interface RadarrMovieFile {
 interface RadarrMovie {
   tmdbId: number;
   title: string;
-  year?: number;
 }
 
 interface RadarrPayload {
@@ -28,7 +27,6 @@ interface RadarrPayload {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const db = getDb();
     const payload: RadarrPayload = await request.json();
     console.log(`Received Radarr webhook: ${payload.eventType}`);
     console.log(payload);
@@ -53,7 +51,6 @@ export const POST: APIRoute = async ({ request }) => {
 
     const tmdbId = payload.movie.tmdbId;
     const title = payload.movie.title;
-    const year = payload.movie.year;
     const filePath = payload.movieFile.path;
     const fileSize = payload.movieFile.size;
 
@@ -61,21 +58,20 @@ export const POST: APIRoute = async ({ request }) => {
     let existingMovie = await db
       .select()
       .from(movies)
-      .where(eq(movies.tmdbId, tmdbId))
+      .where(eq(movies.tmdbid, tmdbId))
       .then((rows) => rows[0]);
 
     let movieId: number;
 
     if (!existingMovie) {
-      const result = await db.insert(movies).values({
-        tmdbId,
+      await db.insert(movies).values({
+        tmdbid: tmdbId,
         title,
-        year,
         filePath,
         fileSize,
         uploadStatus: 'uploading',
       });
-      movieId = Number(result.lastInsertRowid);
+      movieId = tmdbId;
     } else {
       // Update existing movie record
       await db
@@ -87,8 +83,8 @@ export const POST: APIRoute = async ({ request }) => {
           s3Key: null,
           errorMessage: null,
         })
-        .where(eq(movies.id, existingMovie.id));
-      movieId = existingMovie.id;
+        .where(eq(movies.tmdbid, existingMovie.tmdbid));
+      movieId = existingMovie.tmdbid;
     }
 
     // Trigger upload
@@ -107,7 +103,7 @@ export const POST: APIRoute = async ({ request }) => {
         uploadedAt: uploadResult.success ? new Date() : null,
         errorMessage: uploadResult.error || null,
       })
-      .where(eq(movies.id, movieId));
+      .where(eq(movies.tmdbid, movieId));
 
     // Log the upload
     await db.insert(uploadLogs).values({
@@ -122,7 +118,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     console.log(
-      `Processed Radarr Download webhook for ${title} (TMDB: ${tmdbId}, Year: ${year}, downloadId: ${payload.downloadId || 'n/a'})`
+      `Processed Radarr Download webhook for ${title} (TMDB: ${tmdbId}, downloadId: ${payload.downloadId || 'n/a'})`
     );
 
     return new Response(JSON.stringify({ success: true, message: 'Webhook processed' }), {

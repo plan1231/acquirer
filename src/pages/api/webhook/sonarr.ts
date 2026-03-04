@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { getDb } from '@/db';
+import { db } from '@/db';
 import { series, seasons, episodes, uploadLogs } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { uploadFile, generateS3Key } from '@/lib/s3';
@@ -12,9 +12,8 @@ interface SonarrEpisodeFile {
 }
 
 interface SonarrSeries {
-  tvdbId: number;
+  tmdbId?: number;
   title: string;
-  year?: number;
 }
 
 interface SonarrEpisode {
@@ -34,7 +33,6 @@ interface SonarrPayload {
 
 export const POST: APIRoute = async ({ request }) => {
   try {
-    const db = getDb();
     const payload: SonarrPayload = await request.json();
     console.log(`Received Sonarr webhook: ${payload.eventType}`);
     console.log(payload);
@@ -75,7 +73,14 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    const tvdbId = payload.series.tvdbId;
+    if (typeof payload.series.tmdbId !== 'number') {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required series.tmdbId metadata' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const tmdbId = payload.series.tmdbId;
     const title = payload.series.title;
     const filePath = payload.episodeFile.path;
     const fileSize = payload.episodeFile.size;
@@ -84,22 +89,19 @@ export const POST: APIRoute = async ({ request }) => {
     let existingSeries = await db
       .select()
       .from(series)
-      .where(eq(series.tvdbId, tvdbId))
+      .where(eq(series.tmdbid, tmdbId))
       .then((rows) => rows[0]);
 
-    let seriesId: number;
+    let seriesTmdbid: number;
 
     if (!existingSeries) {
-      const firstAirYear = payload.series.year ?? null;
-
-      const result = await db.insert(series).values({
-        tvdbId,
+      await db.insert(series).values({
+        tmdbid: tmdbId,
         title,
-        firstAirYear,
       });
-      seriesId = Number(result.lastInsertRowid);
+      seriesTmdbid = tmdbId;
     } else {
-      seriesId = existingSeries.id;
+      seriesTmdbid = existingSeries.tmdbid;
     }
 
     const insertedEpisodeIds: number[] = [];
@@ -119,17 +121,20 @@ export const POST: APIRoute = async ({ request }) => {
       let existingSeason = await db
         .select()
         .from(seasons)
-        .where(and(eq(seasons.seriesId, seriesId), eq(seasons.seasonNumber, seasonNum)))
+        .where(and(eq(seasons.seriesTmdbid, seriesTmdbid), eq(seasons.seasonNumber, seasonNum)))
         .then((rows) => rows[0]);
 
       let seasonId: number;
 
       if (!existingSeason) {
-        const result = await db.insert(seasons).values({
-          seriesId,
-          seasonNumber: seasonNum,
-        });
-        seasonId = Number(result.lastInsertRowid);
+        const [insertedSeason] = await db
+          .insert(seasons)
+          .values({
+            seriesTmdbid,
+            seasonNumber: seasonNum,
+          })
+          .returning({ id: seasons.id });
+        seasonId = insertedSeason.id;
       } else {
         seasonId = existingSeason.id;
       }
@@ -155,21 +160,24 @@ export const POST: APIRoute = async ({ request }) => {
           continue;
         }
 
-        const inserted = await db.insert(episodes).values({
-          seasonId,
-          episodeNumber,
-          title: ep.title || '',
-          filePath,
-          fileSize,
-          uploadStatus: 'uploading',
-        });
+        const [insertedEpisode] = await db
+          .insert(episodes)
+          .values({
+            seasonId,
+            episodeNumber,
+            title: ep.title || '',
+            filePath,
+            fileSize,
+            uploadStatus: 'uploading',
+          })
+          .returning({ id: episodes.id });
 
-        insertedEpisodeIds.push(Number(inserted.lastInsertRowid));
+        insertedEpisodeIds.push(insertedEpisode.id);
       }
     }
 
     const filename = filePath.split('/').pop() || 'video';
-    const s3Key = generateS3Key('episode', tvdbId, filename);
+    const s3Key = generateS3Key('episode', tmdbId, filename);
     const uploadResult = await uploadFile(filePath, s3Key);
 
     for (const episodeId of insertedEpisodeIds) {
@@ -196,7 +204,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     console.log(
-      `Processed Sonarr Download webhook for ${title} (TVDB: ${tvdbId}) - ${insertedEpisodeIds.length} episode(s), downloadId=${payload.downloadId || 'n/a'}`
+      `Processed Sonarr Download webhook for ${title} (TMDB: ${tmdbId}) - ${insertedEpisodeIds.length} episode(s), downloadId=${payload.downloadId || 'n/a'}`
     );
 
     return new Response(JSON.stringify({ success: true, message: 'Webhook processed' }), {

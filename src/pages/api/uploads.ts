@@ -1,16 +1,14 @@
 import type { APIRoute } from 'astro';
-import { getDb } from '@/db';
+import { db } from '@/db';
 import { movies, episodes, seasons, series } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 
 export const GET: APIRoute = async () => {
   try {
-    const db = getDb();
-
     // Get recent movies
     const recentMovies = await db
       .select({
-        id: movies.id,
+        id: movies.tmdbid,
         title: movies.title,
         filePath: movies.filePath,
         fileSize: movies.fileSize,
@@ -42,7 +40,7 @@ export const GET: APIRoute = async () => {
       })
       .from(episodes)
       .innerJoin(seasons, eq(episodes.seasonId, seasons.id))
-      .innerJoin(series, eq(seasons.seriesId, series.id))
+      .innerJoin(series, eq(seasons.seriesTmdbid, series.tmdbid))
       .orderBy(desc(episodes.createdAt))
       .limit(10);
 

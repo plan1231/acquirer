@@ -72,8 +72,7 @@ services:
       - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-}
       - DATABASE_URL=${DATABASE_URL}
     volumes:
-      - ./data:/app/data
-      - downloads:/downloads:ro
+      - /data:/data
     ports:
       - "8000:3000"
     depends_on:

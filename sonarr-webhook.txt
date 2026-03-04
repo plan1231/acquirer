@@ -1,0 +1,222 @@
+acquirer  | Received Sonarr webhook: Grab
+acquirer  | {
+acquirer  |   series: {
+acquirer  |     id: 1,
+acquirer  |     title: 'Family Guy',
+acquirer  |     titleSlug: 'family-guy',
+acquirer  |     path: '/data/media/tv/Family Guy',
+acquirer  |     tvdbId: 75978,
+acquirer  |     tvMazeId: 84,
+acquirer  |     tmdbId: 1434,
+acquirer  |     imdbId: 'tt0182576',
+acquirer  |     type: 'standard',
+acquirer  |     year: 1999,
+acquirer  |     genres: [ 'Animation', 'Comedy' ],
+acquirer  |     images: [ [Object], [Object], [Object], [Object] ],
+acquirer  |     tags: [],
+acquirer  |     originalLanguage: { id: 1, name: 'English' }
+acquirer  |   },
+acquirer  |   episodes: [
+acquirer  |     {
+acquirer  |       id: 500,
+acquirer  |       episodeNumber: 5,
+acquirer  |       seasonNumber: 24,
+acquirer  |       title: 'Dear Francis',
+acquirer  |       overview: `Peter calls out the name "Francis" while making love with Lois, but she believes he meant his deceased father, leading to a round of therapy. Things worsen when Lois discovers "Frances" is the name of the Clam's new, pretty waitress.`,
+acquirer  |       airDate: '2026-03-01',
+acquirer  |       airDateUtc: '2026-03-02T01:22:00Z',
+acquirer  |       seriesId: 1,
+acquirer  |       tvdbId: 11600272
+acquirer  |     }
+acquirer  |   ],
+acquirer  |   release: {
+acquirer  |     quality: 'WEBDL-1080p',
+acquirer  |     qualityVersion: 1,
+acquirer  |     releaseGroup: 'EDITH',
+acquirer  |     releaseTitle: 'Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |     indexer: 'Blutopia (API) (Prowlarr)',
+acquirer  |     size: 549556800,
+acquirer  |     customFormatScore: 0,
+acquirer  |     customFormats: [],
+acquirer  |     languages: [ [Object] ]
+acquirer  |   },
+acquirer  |   downloadClient: 'qBittorrent',
+acquirer  |   downloadClientType: 'qBittorrent',
+acquirer  |   downloadId: '662B5FE77B40A9ACF781198F64416E4CFFB423F4',
+acquirer  |   customFormatInfo: { customFormats: [], customFormatScore: 0 },
+acquirer  |   eventType: 'Grab',
+acquirer  |   instanceName: 'Sonarr',
+acquirer  |   applicationUrl: ''
+acquirer  | }
+acquirer  | Received Sonarr webhook: Download
+acquirer  | {
+acquirer  |   series: {
+acquirer  |     id: 1,
+acquirer  |     title: 'Family Guy',
+acquirer  |     titleSlug: 'family-guy',
+acquirer  |     path: '/data/media/tv/Family Guy',
+acquirer  |     tvdbId: 75978,
+acquirer  |     tvMazeId: 84,
+acquirer  |     tmdbId: 1434,
+acquirer  |     imdbId: 'tt0182576',
+acquirer  |     type: 'standard',
+acquirer  |     year: 1999,
+acquirer  |     genres: [ 'Animation', 'Comedy' ],
+acquirer  |     images: [ [Object], [Object], [Object], [Object] ],
+acquirer  |     tags: [],
+acquirer  |     originalLanguage: { id: 1, name: 'English' }
+acquirer  |   },
+acquirer  |   episodes: [
+acquirer  |     {
+acquirer  |       id: 500,
+acquirer  |       episodeNumber: 5,
+acquirer  |       seasonNumber: 24,
+acquirer  |       title: 'Dear Francis',
+acquirer  |       overview: `Peter calls out the name "Francis" while making love with Lois, but she believes he meant his deceased father, leading to a round of therapy. Things worsen when Lois discovers "Frances" is the name of the Clam's new, pretty waitress.`,
+acquirer  |       airDate: '2026-03-01',
+acquirer  |       airDateUtc: '2026-03-02T01:22:00Z',
+acquirer  |       seriesId: 1,
+acquirer  |       tvdbId: 11600272
+acquirer  |     }
+acquirer  |   ],
+acquirer  |   episodeFile: {
+acquirer  |     id: 12,
+acquirer  |     relativePath: 'Season 24/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |     path: '/data/media/tv/Family Guy/Season 24/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |     quality: 'WEBDL-1080p',
+acquirer  |     qualityVersion: 1,
+acquirer  |     releaseGroup: 'EDITH',
+acquirer  |     sceneName: 'Family.Guy.S24E05.1080p.WEB.h264-EDITH',
+acquirer  |     size: 549556815,
+acquirer  |     dateAdded: '2026-03-04T01:59:47.1562449Z',
+acquirer  |     languages: [ [Object] ],
+acquirer  |     mediaInfo: {
+acquirer  |       audioChannels: 5.1,
+acquirer  |       audioCodec: 'EAC3',
+acquirer  |       audioLanguages: [Array],
+acquirer  |       height: 1080,
+acquirer  |       width: 1920,
+acquirer  |       subtitles: [Array],
+acquirer  |       videoCodec: 'h264',
+acquirer  |       videoDynamicRange: '',
+acquirer  |       videoDynamicRangeType: ''
+acquirer  |     },
+acquirer  |     sourcePath: '/data/torrents/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv'
+acquirer  |   },
+acquirer  |   isUpgrade: false,
+acquirer  |   downloadClient: 'qBittorrent',
+acquirer  |   downloadClientType: 'qBittorrent',
+acquirer  |   downloadId: '662B5FE77B40A9ACF781198F64416E4CFFB423F4',
+acquirer  |   customFormatInfo: { customFormats: [], customFormatScore: 0 },
+acquirer  |   release: {
+acquirer  |     releaseTitle: 'Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |     indexer: 'Blutopia (API) (Prowlarr)',
+acquirer  |     size: 549556800,
+acquirer  |     releaseType: 'singleEpisode'
+acquirer  |   },
+acquirer  |   eventType: 'Download',
+acquirer  |   instanceName: 'Sonarr',
+acquirer  |   applicationUrl: ''
+acquirer  | }
+acquirer  | Error handling Sonarr webhook: DrizzleQueryError: Failed query: insert into "series" ("id", "tvdb_id", "title", "first_air_year", "created_at") values (null, ?, ?, ?, ?)
+acquirer  | params: 75978,Family Guy,1999,1772589587
+acquirer  |     at LibSQLPreparedQuery.queryWithCache (file:///app/node_modules/drizzle-orm/sqlite-core/session.js:43:15)
+acquirer  |     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+acquirer  |     at async LibSQLPreparedQuery.run (file:///app/node_modules/drizzle-orm/libsql/session.js:121:12)
+acquirer  |     at async Module.POST (file:///app/dist/server/pages/api/webhook/sonarr.astro.mjs:50:22)
+acquirer  |     at async renderEndpoint (file:///app/dist/server/chunks/astro/server_DQCJRx29.mjs:510:18)
+acquirer  |     at async lastNext (file:///app/dist/server/chunks/_@astrojs-ssr-adapter_DT3L8feb.mjs:2657:23)
+acquirer  |     at async callMiddleware (file:///app/dist/server/chunks/_@astrojs-ssr-adapter_DT3L8feb.mjs:1281:10)
+acquirer  |     at async RenderContext.render (file:///app/dist/server/chunks/_@astrojs-ssr-adapter_DT3L8feb.mjs:2704:22)
+acquirer  |     at async NodeApp.render (file:///app/dist/server/chunks/_@astrojs-ssr-adapter_DT3L8feb.mjs:3660:18)
+acquirer  |     at async file:///app/dist/server/chunks/_@astrojs-ssr-adapter_DT3L8feb.mjs:4270:24 {
+acquirer  |   query: 'insert into "series" ("id", "tvdb_id", "title", "first_air_year", "created_at") values (null, ?, ?, ?, ?)',
+acquirer  |   params: [ 75978, 'Family Guy', 1999, 1772589587 ],
+acquirer  |   cause: LibsqlError: SQLITE_READONLY: attempt to write a readonly database
+acquirer  |       at mapSqliteError (file:///app/node_modules/@libsql/client/lib-esm/sqlite3.js:434:16)
+acquirer  |       at executeStmt (file:///app/node_modules/@libsql/client/lib-esm/sqlite3.js:337:15)
+acquirer  |       at Sqlite3Client.execute (file:///app/node_modules/@libsql/client/lib-esm/sqlite3.js:82:16)
+acquirer  |       ... 5 lines matching cause stack trace ...
+acquirer  |       at QueryPromise.then (file:///app/node_modules/drizzle-orm/query-promise.js:21:17)
+acquirer  |       at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+acquirer  |     code: 'SQLITE_READONLY',
+acquirer  |     extendedCode: 'SQLITE_READONLY',
+acquirer  |     rawCode: 8,
+acquirer  |     [cause]: SqliteError: attempt to write a readonly database
+acquirer  |         at convertError (/app/node_modules/libsql/index.js:59:12)
+acquirer  |         at Statement.run (/app/node_modules/libsql/index.js:335:13)
+acquirer  |         at executeStmt (file:///app/node_modules/@libsql/client/lib-esm/sqlite3.js:330:34)
+acquirer  |         at Sqlite3Client.execute (file:///app/node_modules/@libsql/client/lib-esm/sqlite3.js:82:16)
+acquirer  |         at file:///app/node_modules/drizzle-orm/libsql/session.js:123:60
+acquirer  |         at LibSQLPreparedQuery.queryWithCache (file:///app/node_modules/drizzle-orm/sqlite-core/session.js:41:22)
+acquirer  |         at LibSQLPreparedQuery.run (file:///app/node_modules/drizzle-orm/libsql/session.js:121:23)
+acquirer  |         at QueryPromise.run (file:///app/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js:162:28)
+acquirer  |         at QueryPromise.execute (file:///app/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js:174:54)
+acquirer  |         at QueryPromise.then (file:///app/node_modules/drizzle-orm/query-promise.js:21:17) {
+acquirer  |       code: 'SQLITE_READONLY',
+acquirer  |       rawCode: 8
+acquirer  |     }
+acquirer  |   }
+acquirer  | }
+acquirer  | Received Sonarr webhook: Download
+acquirer  | {
+acquirer  |   series: {
+acquirer  |     id: 1,
+acquirer  |     title: 'Family Guy',
+acquirer  |     titleSlug: 'family-guy',
+acquirer  |     path: '/data/media/tv/Family Guy',
+acquirer  |     tvdbId: 75978,
+acquirer  |     tvMazeId: 84,
+acquirer  |     tmdbId: 1434,
+acquirer  |     imdbId: 'tt0182576',
+acquirer  |     type: 'standard',
+acquirer  |     year: 1999,
+acquirer  |     genres: [ 'Animation', 'Comedy' ],
+acquirer  |     images: [ [Object], [Object], [Object], [Object] ],
+acquirer  |     tags: [],
+acquirer  |     originalLanguage: { id: 1, name: 'English' }
+acquirer  |   },
+acquirer  |   episodes: [
+acquirer  |     {
+acquirer  |       id: 500,
+acquirer  |       episodeNumber: 5,
+acquirer  |       seasonNumber: 24,
+acquirer  |       title: 'Dear Francis',
+acquirer  |       overview: `Peter calls out the name "Francis" while making love with Lois, but she believes he meant his deceased father, leading to a round of therapy. Things worsen when Lois discovers "Frances" is the name of the Clam's new, pretty waitress.`,
+acquirer  |       airDate: '2026-03-01',
+acquirer  |       airDateUtc: '2026-03-02T01:22:00Z',
+acquirer  |       seriesId: 1,
+acquirer  |       tvdbId: 11600272
+acquirer  |     }
+acquirer  |   ],
+acquirer  |   episodeFiles: [
+acquirer  |     {
+acquirer  |       id: 12,
+acquirer  |       relativePath: 'Season 24/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |       path: '/data/media/tv/Family Guy/Season 24/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |       quality: 'WEBDL-1080p',
+acquirer  |       qualityVersion: 1,
+acquirer  |       releaseGroup: 'EDITH',
+acquirer  |       sceneName: 'Family.Guy.S24E05.1080p.WEB.h264-EDITH',
+acquirer  |       size: 549556815,
+acquirer  |       dateAdded: '2026-03-04T01:59:47.1562449Z',
+acquirer  |       languages: [Array],
+acquirer  |       mediaInfo: [Object]
+acquirer  |     }
+acquirer  |   ],
+acquirer  |   downloadClient: 'qBittorrent',
+acquirer  |   downloadClientType: 'qBittorrent',
+acquirer  |   downloadId: '662B5FE77B40A9ACF781198F64416E4CFFB423F4',
+acquirer  |   release: {
+acquirer  |     releaseTitle: 'Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |     indexer: 'Blutopia (API) (Prowlarr)',
+acquirer  |     size: 549556800,
+acquirer  |     releaseType: 'singleEpisode'
+acquirer  |   },
+acquirer  |   fileCount: 1,
+acquirer  |   sourcePath: '/data/torrents/Family.Guy.S24E05.1080p.WEB.h264-EDITH.mkv',
+acquirer  |   destinationPath: '/data/media/tv/Family Guy/Season 24',
+acquirer  |   eventType: 'Download',
+acquirer  |   instanceName: 'Sonarr',
+acquirer  |   applicationUrl: ''
+acquirer  | }
