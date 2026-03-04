@@ -48,14 +48,21 @@ export async function uploadFile(
   }
 }
 
-export function generateS3Key(
-  mediaType: 'movie' | 'episode',
-  externalId: number,
+export function generateMovieS3Key(tmdbid: number, filename: string): string {
+  const ext = path.extname(filename);
+  return `${tmdbid}${ext}`;
+}
+
+export function generateEpisodeS3Key(
+  tmdbid: number,
+  seasonNumber: number,
+  episodeNumber: number,
   filename: string
 ): string {
   const ext = path.extname(filename);
-  const timestamp = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
-  return `${mediaType}/${externalId}/${timestamp}_${externalId}${ext}`;
+  const season = String(seasonNumber).padStart(2, '0');
+  const episode = String(episodeNumber).padStart(2, '0');
+  return `${tmdbid}/S${season}/E${episode}${ext}`;
 }
 
 export async function checkFileExists(s3Key: string): Promise<boolean> {

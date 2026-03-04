@@ -1,8 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db } from '@/db';
-import { movies, uploadLogs } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { uploadFile, generateS3Key } from '@/lib/s3';
+import { ProcessMovie, jobRunner } from '@/lib/jobs';
 
 // Types for Radarr webhook payload
 interface RadarrMovieFile {
@@ -51,77 +48,18 @@ export const POST: APIRoute = async ({ request }) => {
 
     const tmdbId = payload.movie.tmdbId;
     const title = payload.movie.title;
-    const filePath = payload.movieFile.path;
-    const fileSize = payload.movieFile.size;
-
-    // Get or create movie
-    let existingMovie = await db
-      .select()
-      .from(movies)
-      .where(eq(movies.tmdbid, tmdbId))
-      .then((rows) => rows[0]);
-
-    let movieId: number;
-
-    if (!existingMovie) {
-      await db.insert(movies).values({
-        tmdbid: tmdbId,
-        title,
-        filePath,
-        fileSize,
-        uploadStatus: 'uploading',
-      });
-      movieId = tmdbId;
-    } else {
-      // Update existing movie record
-      await db
-        .update(movies)
-        .set({
-          filePath,
-          fileSize,
-          uploadStatus: 'uploading',
-          s3Key: null,
-          errorMessage: null,
-        })
-        .where(eq(movies.tmdbid, existingMovie.tmdbid));
-      movieId = existingMovie.tmdbid;
-    }
-
-    // Trigger upload
-    const filename = filePath.split('/').pop() || 'video';
-    const s3Key = generateS3Key('movie', tmdbId, filename);
-
-    // Perform upload
-    const uploadResult = await uploadFile(filePath, s3Key);
-
-    // Update movie status
-    await db
-      .update(movies)
-      .set({
-        uploadStatus: uploadResult.success ? 'uploaded' : 'failed',
-        s3Key: uploadResult.success ? s3Key : null,
-        uploadedAt: uploadResult.success ? new Date() : null,
-        errorMessage: uploadResult.error || null,
-      })
-      .where(eq(movies.tmdbid, movieId));
-
-    // Log the upload
-    await db.insert(uploadLogs).values({
-      mediaType: 'movie',
-      mediaId: movieId,
-      filePath,
-      fileSize,
-      s3Key,
-      s3Bucket: process.env.S3_BUCKET || '',
-      status: uploadResult.success ? 'uploaded' : 'failed',
-      errorMessage: uploadResult.error || null,
+    const job = new ProcessMovie({
+      tmdbid: tmdbId,
+      title,
+      importedFilePath: payload.movieFile.path,
     });
+    jobRunner.enqueue(job);
 
     console.log(
-      `Processed Radarr Download webhook for ${title} (TMDB: ${tmdbId}, downloadId: ${payload.downloadId || 'n/a'})`
+      `Queued Radarr Download webhook for ${title} (TMDB: ${tmdbId}, jobId: ${job.id}, downloadId: ${payload.downloadId || 'n/a'})`
     );
 
-    return new Response(JSON.stringify({ success: true, message: 'Webhook processed' }), {
+    return new Response(JSON.stringify({ success: true, message: 'Webhook queued', jobId: job.id }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

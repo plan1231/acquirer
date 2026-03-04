@@ -1,0 +1,137 @@
+interface SonarrSeries {
+  id: number;
+  tmdbId?: number;
+  title?: string;
+}
+
+interface SonarrEpisode {
+  seriesId: number;
+  seasonNumber: number;
+  episodeNumber: number;
+  title?: string;
+  hasFile?: boolean;
+  episodeFileId?: number;
+  episodeFile?: {
+    path?: string;
+  };
+}
+
+interface SonarrEpisodeFile {
+  id: number;
+  path?: string;
+}
+
+export interface DownloadedEpisode {
+  tmdbid: number;
+  showTitle: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  episodeTitle: string;
+  filePath: string;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+export class SonarrClient {
+  private readonly baseUrl: string;
+  private readonly apiKey: string;
+
+  constructor(baseUrl = process.env.SONARR_URL ?? 'http://sonarr:8989', apiKey = process.env.SONARR_API_KEY ?? '') {
+    if (!apiKey) {
+      throw new Error('SONARR_API_KEY is required');
+    }
+
+    this.baseUrl = this.normalizeBaseUrl(baseUrl);
+    this.apiKey = apiKey;
+  }
+
+  async getDownloadedEpisodes(): Promise<DownloadedEpisode[]> {
+    const [seriesList, episodeList, episodeFiles] = await Promise.all([
+      this.fetchJson<SonarrSeries[]>('/series'),
+      this.fetchJson<SonarrEpisode[]>('/episode'),
+      this.fetchJson<SonarrEpisodeFile[]>('/episodefile'),
+    ]);
+
+    const seriesById = new Map<number, SonarrSeries>();
+    for (const entry of seriesList) {
+      seriesById.set(entry.id, entry);
+    }
+
+    const filePathById = new Map<number, string>();
+    for (const file of episodeFiles) {
+      if (isNonEmptyString(file.path)) {
+        filePathById.set(file.id, file.path);
+      }
+    }
+
+    const downloadedEpisodes: DownloadedEpisode[] = [];
+    for (const episode of episodeList) {
+      if (!episode.hasFile) {
+        continue;
+      }
+
+      const series = seriesById.get(episode.seriesId);
+      if (!series || typeof series.tmdbId !== 'number') {
+        continue;
+      }
+
+      const filePath =
+        (isNonEmptyString(episode.episodeFile?.path) && episode.episodeFile.path) ||
+        (typeof episode.episodeFileId === 'number' ? filePathById.get(episode.episodeFileId) : undefined);
+
+      if (!isNonEmptyString(filePath)) {
+        continue;
+      }
+
+      if (typeof episode.seasonNumber !== 'number' || typeof episode.episodeNumber !== 'number') {
+        continue;
+      }
+
+      downloadedEpisodes.push({
+        tmdbid: series.tmdbId,
+        showTitle: isNonEmptyString(series.title) ? series.title : `tmdb:${series.tmdbId}`,
+        seasonNumber: episode.seasonNumber,
+        episodeNumber: episode.episodeNumber,
+        episodeTitle: isNonEmptyString(episode.title)
+          ? episode.title
+          : `S${episode.seasonNumber}E${episode.episodeNumber}`,
+        filePath,
+      });
+    }
+
+    return downloadedEpisodes;
+  }
+
+  private normalizeBaseUrl(url: string): string {
+    const withoutTrailingSlash = url.replace(/\/+$/, '');
+    if (withoutTrailingSlash.endsWith('/api/v3')) {
+      return withoutTrailingSlash.slice(0, -'/api/v3'.length);
+    }
+
+    return withoutTrailingSlash;
+  }
+
+  private buildApiUrl(path: string): string {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    return `${this.baseUrl}/api/v3${normalizedPath}`;
+  }
+
+  private async fetchJson<T>(path: string): Promise<T> {
+    const url = this.buildApiUrl(path);
+    const response = await fetch(url, {
+      headers: {
+        'X-Api-Key': this.apiKey,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Sonarr API request failed (${response.status} ${response.statusText}) at ${url}: ${body}`);
+    }
+
+    return (await response.json()) as T;
+  }
+}
